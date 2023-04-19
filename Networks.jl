@@ -1,3 +1,4 @@
+# This module defines layers and their combination into networks
 module Networks
 
 export Layer, get_θ, set_θ!
@@ -5,8 +6,8 @@ export LU, ReLU, Softmax, ConstUnit
 export Model, Network
 export eval_network
 export NetworkEvaluation, eval_network!
-export save
-
+export save 
+#TODO Fix this save, it's ugly, replace with parameter ..., save=true)
 export NetworkGradient, backprop, gradient, ∇_θ
 
 import Base.show 
@@ -254,25 +255,24 @@ end
 struct NetworkGradient
     network::Network # reference to the network this evaluation is for
     evaluation::NetworkEvaluation
-    y # The desired output as given by the training data
     dJdx # The gradient w.r.t. the input of the network
     dJdy::Vector{Any} # dJdy[i] provides dJ/dLᵢ with yᵢ the output of the i-th layer of the network. Some of these may remain empty if not needed.
     dJdθ::Vector{Any} # dJdθ[i] provides dJ/dθᵢ with θᵢ the parameters of the i-th layer of the network. Some of these may remain empty if not needed.
 end
 
 # Calculates the gradient of the network w.r.t. the parameters and the input
-function gradient(ne::NetworkEvaluation, y)
+function gradient(ne::NetworkEvaluation, dJdyₘ)
     network = ne.network
     m = length(network.layers)
 
     # Construct a NetworkGradient object 
-    ng = NetworkGradient(network, ne, y, zeros(size(ne.input')), Vector{Any}(nothing,m), Vector{Any}(nothing,m))
+    ng = NetworkGradient(network, ne, zeros(size(ne.input')), Vector{Any}(nothing,m), Vector{Any}(nothing,m))
 
-    yₘ = ne.outputs[end] # output of final layer
+    # yₘ = ne.outputs[end] # output of final layer
 
-    # Evaluate the gradient of the MSE cost function
-    J = sum((yₘ.-y).^2) # Cost function 
-    dJdyₘ = (yₘ.-y)' # dJ/dyₘ
+    # # Evaluate the gradient of the MSE cost function
+    # J = sum((yₘ.-y).^2) # Cost function 
+    # dJdyₘ = (yₘ.-y)' # dJ/dyₘ
 
     ng.dJdy[end] = dJdyₘ 
 

@@ -8,7 +8,7 @@ input = rand(3)
 out = network(input)
 ne = network(input, save)
 
-ng = gradient(ne, out*0)
+ng = gradient(ne, ones(size(out))')
 grad = ∇_θ(ng)
 
 #########

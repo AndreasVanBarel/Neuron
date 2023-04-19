@@ -5,38 +5,17 @@ export train!
 export Sample 
 
 using Networks 
+using Datasets
+using Lossfunctions
 
-
-# A single input-output pair (x,y)
-struct Sample 
-    x
-    y
-end
-
-# struct DataSet 
-#     samples::Vector{Sample}
-# end
-
-# Calculates the loss function for the given samples
-# MSE loss of the network for the given data
-function loss(network::Network, data::Vector{Sample})
-    J = 0
-    for sample in data 
-        x,y = sample.x, sample.y
-        yₘ = network(x)
-        J += sum((y.-yₘ).^2)
-    end
-    J/=length(data)
-end
-
-function train!(network::Network, training_data::Vector{Sample}, iterations::Int; method=:SGD, perf_log=nothing, test_data=training_data)
+function train!(network::Network, cost, training_data::Vector{Sample}, iterations::Int; method=:SGD, perf_log=nothing, test_data=training_data)
     if method==:SGD 
-        SGD!(network, training_data, iterations; perf_log=perf_log, test_data=test_data)
+        SGD!(network, cost, training_data, iterations; perf_log=perf_log, test_data=test_data)
     end
 end
 
 # Do n training iterations
-function SGD!(network::Network, training_data, iterations::Int; perf_log=nothing, test_data=training_data)
+function SGD!(network::Network, cost, training_data, iterations::Int; perf_log=nothing, test_data=training_data)
 
     α_init = 1e-3 # initial learning rate 
     α_min = 1e-3
@@ -51,21 +30,22 @@ function SGD!(network::Network, training_data, iterations::Int; perf_log=nothing
         x,y = sample.x, sample.y
 
         ne = network(x, save)
-        ng = gradient(ne, y)
+        yₘ = ne.outputs[end] # output of final layer
+
+        # Evaluate the gradient of the cost function
+        J = cost(yₘ, y)
+        dJdyₘ = ∇(cost, yₘ, y)'
+
+        ng = gradient(ne, dJdyₘ)
         grad = ∇_θ(ng)
 
         θ = get_θ(network)
         Δθ = -grad.*α(i)
         set_θ!(network, θ.+Δθ)  
 
-        if !isnothing(perf_log); perf_log[i] = loss(network, test_data); end
+        if !isnothing(perf_log); perf_log[i] = cost(network, test_data); end
     end
 end
 
-
-
-# Design considerations
-# Sample struct contains an individual sample
-# A Vector{Sample} constitutes a DataSet (might make an explicit struct encapsulating this later)
 
 end
