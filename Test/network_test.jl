@@ -80,4 +80,3 @@ dydx_fd = finite_diff(softmax, x, y)
 dydx_bp = backprop_test(softmax, x, y)
 @test norm(dydx_fd-dydx_bp) < 1e-7
 
-

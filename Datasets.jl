@@ -1,5 +1,7 @@
 module Datasets 
 
+# Should perhaps have a DataLoader, wrapping a dataset and returning a permuted version of the data 
+
 export Sample 
 export Dataset
 

@@ -1,11 +1,7 @@
 # In this script we attempt to learn the XOR function
 
 using Networks 
-
-struct Sample 
-    x
-    y
-end
+using Datasets
 
 training_data = [Sample([0,0],[1,0]), Sample([0,1],[0,1]), Sample([1,0],[0,1]), Sample([1,1],[1,0])]
 training_data = [Sample([0,0],0), Sample([0,1],1), Sample([1,0],1), Sample([1,1],0)]
