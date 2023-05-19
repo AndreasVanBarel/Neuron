@@ -8,14 +8,14 @@ using Networks
 using Datasets
 using Lossfunctions
 
-function train!(network::Network, cost, training_data::Vector{Sample}, iterations::Int; method=:SGD, perf_log=nothing, test_data=training_data)
+function train!(network::Network, cost::AbstractCost, training_data::Vector{Sample}, iterations::Int; method=:SGD, perf_log=nothing, test_data=training_data)
     if method==:SGD 
         SGD!(network, cost, training_data, iterations; perf_log=perf_log, test_data=test_data)
     end
 end
 
 # Do n training iterations
-function SGD!(network::Network, cost, training_data, iterations::Int; perf_log=nothing, test_data=training_data)
+function SGD!(network::Network, cost::AbstractCost, training_data, iterations::Int; perf_log=nothing, test_data=training_data)
 
     α_init = 1e-3 # initial learning rate 
     α_min = 1e-3
