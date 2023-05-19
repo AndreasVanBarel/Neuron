@@ -74,10 +74,9 @@ f(x) = min(1,max(1.25-20x,0))
 x_draw = f.(m)
 heatmap(rotl90(x_draw))
 
-
 result = model(reshape(x_draw,length(x_draw)) |> gpu) |> cpu
 
-
+# For investigating model parameters
 function get_params(model)
     p = Flux.params(model).params
     p = collect(p)
@@ -85,6 +84,6 @@ function get_params(model)
 end
 p = get_params(model)
 W = p[3]
-feature = 1
+feature = 2
 heatmap(rotl90(reshape(W[feature,:],28,28)))
- 
+  
