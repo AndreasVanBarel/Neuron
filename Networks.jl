@@ -11,6 +11,7 @@ export save
 export NetworkGradient, backprop, gradient, ∇_θ
 
 import Base.show 
+import Nablas.∇_θ
 
 # ToDo: For consistency, replace the naming "output" and "outputs" to "y" for layer outputs 
 # ToDo: Also replace the input by "x"

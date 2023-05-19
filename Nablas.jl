@@ -4,4 +4,7 @@ module Nablas
 
 export ∇, ∇_θ 
 
+∇(x::Number) = zero(x)
+∇_θ(x::Number) = zero(x)
+
 end
