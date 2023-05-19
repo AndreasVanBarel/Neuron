@@ -98,6 +98,7 @@ function make_canvas()
     Gtk.showall(win)
 
     return lines
+    # todo: return canvas such that it can be closed
 end 
 
 function get_line(lines, index)
@@ -117,5 +118,38 @@ function get_lines(lines)
 end 
 
 get_last_line(lines) = get_line(lines, length(lines.value))
+
+
+# Convert the drawn lines into an image matrix 
+# We create a matrix of pixels
+# The pixel values show the distance between the closest line segment 
+# This is accomplished by going over all line segments and entering the distance in to it for each pixel in the matrix, updating pixels only if the new value is smaller than the old one 
+# In this case, one starts out with a matrix filled with Infs
+
+# Point is of the form [x,y]::Vector{Float64}
+function add_point!(matrix, point)
+    d(p1,p2) = sum((p1.-p2).^2)
+    w,h = size(matrix)
+
+    # produces coordinates in [0,1] × [0,1]
+    to_unit_square(i,j) = [(i-1)/(w-1), (j-1)/(h-1)]
+
+    distances = [d(point, to_unit_square(i,j)) for i in 1:w, j in 1:h]
+    matrix.=min.(matrix, distances)
+end
+
+function add_line!(matrix, line)
+    for i in 1:size(line,1)
+        add_point!(matrix, line[i,:])
+    end
+end
+
+function distance_matrix(line, w, h)
+    matrix = fill(Inf32,w,h)
+    add_line!(matrix, line)
+    return sqrt.(matrix)
+end
+
+
 
 end
