@@ -16,6 +16,10 @@ import Nablas.∇_θ
 # ToDo: For consistency, replace the naming "output" and "outputs" to "y" for layer outputs 
 # ToDo: Also replace the input by "x"
 
+# Glorot Uniform initialization
+# Generates m × n matrix with each element picked from uniform distribution between -sqrt(6/(m+n)) and sqrt(6/(m+n))
+glorot_uniform(m,n) = (2 .*rand(m,n) .-1).*sqrt(6/(m+n))
+
 ############
 ## Layers ##
 ############
@@ -68,8 +72,8 @@ function set_θ!(lu::LU, W, b)
 end
 
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
-function LU(i::Int, k::Int; f=randn) 
-    LU(f(k,i), f(k))
+function LU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k)) 
+    LU(init_W, init_b)
 end
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
@@ -108,8 +112,8 @@ function set_θ!(relu::ReLU, W, b)
 end
 
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
-function ReLU(i::Int, k::Int; f=randn) 
-    ReLU(f(k,i), f(k))
+function ReLU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k)) 
+    ReLU(init_W, init_b)
 end
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
@@ -157,7 +161,7 @@ function backprop(::Softmax, x, y, dJdy)
     v = exp.(x)
     s = sum(v)
     dJdx = -(dJdy*v/s^2)*v' + dJdy.*v'/s
-    return dJdx, []'
+    return dJdx, Float64[]'
 end
 
 ################
