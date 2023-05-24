@@ -5,7 +5,8 @@ export Layer, get_θ, set_θ!
 export LU, ReLU, Softmax, ConstUnit
 export Model, Network
 export eval_network
-export NetworkEvaluation, eval_network!
+export NetworkWithData, allocate!, allocate, size_params
+export NetworkEvaluation, allocate!
 export save 
 #TODO Fix this save, it's ugly, replace with parameter ..., save=true)
 export NetworkGradient, backprop, gradient, ∇_θ
@@ -38,9 +39,9 @@ evaluate(L::Layer, input) = L(inputs...)
 # end  
 
 # get_θ returns all parameters into a single Array
-get_θ(L::Layer) = [] # fallback empty Array
+get_θ(L::Layer) = Float64[] # fallback empty Array
 # set_θ! sets all parameters from a single provided Array
-set_θ!(L::Layer, θ) = θ == [] ? L : error("The parameter format does not match the required format")
+set_θ!(L::Layer, θ) = θ == Float64[] ? L : error("The parameter format does not match the required format")
 
 #### Outputs a constant value
 mutable struct ConstUnit <: Layer
@@ -54,6 +55,10 @@ function backprop(c::ConstUnit, y, dJdy)
     dJdθ = dJdy
     return dJdθ
 end
+
+size_params(c::ConstUnit) = size(c.const_value)
+# size_input(c::ConstUnit) = 0
+# size_output(c::ConstUnit) = size(c.const_value)
 
 #### Wx+b
 mutable struct LU <: Layer #linear unit
@@ -75,6 +80,10 @@ end
 function LU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k)) 
     LU(init_W, init_b)
 end
+
+size_params(lu::LU) = size(lu.W) .+ (0,1)
+# size_input(lu::LU) = size(lu.W)[2]
+# size_output(lu::LU) = size(lu.W)[1] # Also equals length(lu.b)
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 
@@ -116,6 +125,11 @@ function ReLU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k))
     ReLU(init_W, init_b)
 end
 
+size_params(relu::ReLU) = size(relu.W) .+ (0,1)
+
+# size_input(relu::ReLU) = size(relu.W)[2]
+# size_output(relu::ReLU) = size(relu.W)[1] # Also equals length(relu.b)
+
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 
 # y     Layer output 
@@ -146,6 +160,10 @@ function (s::Softmax)(z)
     exps = exp.(z.-max_z)
     return exps./sum(exps)
 end
+
+size_params(s::Softmax) = (0,1)
+# size_input(s::Softmax) = ?
+# size_output(s::Softmax) = ?
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 
@@ -202,25 +220,10 @@ end
 ############################
 ### Evaluating a network ###
 ############################
-struct Save end
-save = Save() # To be passed when evaluating a network if the intermediate states and other information should be returned instead of just the final value.
 
-function (n::Network)(input, i_output, ::Save) # input is the network input, i_output is the layer of the network that serves as the output layer
-    results = NetworkEvaluation(n, input) # Generate new empty NetworkEvaluation object
-    eval_network!(results, i_output)
-    return results
-end
-(n::Network)(input, s::Save) = n(input, length(n.layers), s) # By default, considers the last layer of the network to be the output layer
+### Simple evaluation without saving any intermediate variables
 (n::Network)(input, i_output) = eval_network(n, input, i_output)
 (n::Network)(input) = n(input, length(n.layers)) # By default, considers the last layer of the network to be the output layer
-
-struct NetworkEvaluation 
-    network::Network # reference to the network this evaluation is for
-    input # The provided input
-    outputs::Vector{Any} # evaluations of the layers of the network, some of which may remain empty if not needed
-end
-
-NetworkEvaluation(network::Network, input) = NetworkEvaluation(network, input, Vector{Any}(nothing, length(network.layers)))
 
 # evaluating the network without saving to intermediate results
 function eval_network(network::Network, input, i_layer::Integer) #eval_layer fills the output for layer i_layer in results
@@ -232,97 +235,143 @@ function eval_network(network::Network, input, i_layer::Integer) #eval_layer fil
     return output
 end
 
-# evaluating the network and saving intermediate results
-function eval_network!(ne::NetworkEvaluation, i_layer::Integer) #eval_layer fills the output for layer i_layer in ne
+### Evaluation with saving intermediate data, allowing backpropagation and gradient calculation.
+mutable struct NetworkWithData
+    const network::Network # reference to the network this evaluation is for
+    input # The provided input
+    const outputs::Vector{Any} # evaluations of the layers of the network, some of which may remain empty if not needed    
+    dJdx # The gradient w.r.t. the input of the network
+    const dJdy::Vector{Any} # dJdy[i] provides dJ/dLᵢ with yᵢ the output of the i-th layer of the network. Some of these may remain empty if not needed.
+    const dJdθ::Vector{Any} # dJdθ[i] provides dJ/dθᵢ with θᵢ the parameters of the i-th layer of the network. Some of these may remain empty if not needed.
+end
+
+# Creates an empty, unallocated NetworkWithData object for the given network
+function NetworkWithData(network::Network) 
+    m = length(network.layers)
+    NetworkWithData(network, nothing, Vector{Any}(nothing, m), nothing, Vector{Any}(nothing,m), Vector{Any}(nothing,m))
+end
+
+# Creates a new NetworkWithData object and allocates appropriate memory for it
+function allocate(network::Network, input, i_layer::Integer=length(network.layers))
+    nwd = NetworkWithData(network) 
+    allocate!(nwd, input, i_layer)
+    return nwd
+end
+
+# Allocates space in the networkWithData object for inputs such as the provided one.
+# i_layer is the layer of the network serving as the output layer
+function allocate!(nwd::NetworkWithData, input, i_layer::Integer=length(nwd.network.layers), first::Bool=true) #eval_layer fills the output for layer i_layer in ne
+
+    if first
+        nwd.outputs.=nothing #de-allocate the outputs
+        nwd.input = input
+        nwd.dJdx = Array{Float64}(undef,size(input'))
+    end
+
     if i_layer == 0 # should return the network input 
-        return ne.input
-    end
-    if !isnothing(ne.outputs[i_layer]) # already calculated
-        return ne.outputs[i_layer]
+        return input
     end
 
-    network = ne.network # The network in which evaluations will occur
+    if !isnothing(nwd.outputs[i_layer]) # already allocated
+        return nwd.outputs[i_layer]
+    end
 
-    inputs = [eval_network!(ne, i) for i in network.connections[i_layer]]
-
+    network = nwd.network # The network in which evaluations will occur
+    inputs = [allocate!(nwd, input, i, false) for i in network.connections[i_layer]]
     output = network.layers[i_layer](inputs...)
-    ne.outputs[i_layer] = output
+
+    # Allocate for layer i_layer
+    nwd.outputs[i_layer] = output
+    nwd.dJdy[i_layer] = similar(output')
+    nwd.dJdθ[i_layer] = Array{Float64}(undef, reverse(size_params(network.layers[i_layer])))
     return output
 end
 
+# Evaluation of a NetworkWithData object stores the intermediate results.
+function (nwd::NetworkWithData)(input, i_layer=length(nwd.network.layers), done=falses(length(nwd.network.layers))) 
+    if i_layer == 0 # should return the network input 
+        nwd.input = input # input should always just be a pointer to whatever input is given, not a copy.
+        return input
+    end
+    if done[i_layer] # already calculated
+        return nwd.outputs[i_layer] # returns a pointer to output of layer i_layer
+    else
+        done[i_layer] = true
+    end
+
+    network = nwd.network # The network in which evaluations will occur
+
+    inputs = [nwd(input, i, done) for i in network.connections[i_layer]]
+
+    output = network.layers[i_layer](inputs...)
+    nwd.outputs[i_layer] .= output
+    return output
+end
 
 #######################
 ### Backpropagation ###
 #######################
 
-# We assume for now a MSE cost function
-
-struct NetworkGradient
-    network::Network # reference to the network this evaluation is for
-    evaluation::NetworkEvaluation
-    dJdx # The gradient w.r.t. the input of the network
-    dJdy::Vector{Any} # dJdy[i] provides dJ/dLᵢ with yᵢ the output of the i-th layer of the network. Some of these may remain empty if not needed.
-    dJdθ::Vector{Any} # dJdθ[i] provides dJ/dθᵢ with θᵢ the parameters of the i-th layer of the network. Some of these may remain empty if not needed.
-end
-
 # Calculates the gradient of the network w.r.t. the parameters and the input
-function gradient(ne::NetworkEvaluation, dJdyₘ)
-    network = ne.network
+function gradient(nwd::NetworkWithData, dJdyₘ)
+    network = nwd.network
     m = length(network.layers)
 
-    # Construct a NetworkGradient object 
-    ng = NetworkGradient(network, ne, zeros(size(ne.input')), Vector{Any}(nothing,m), Vector{Any}(nothing,m))
+    nwd.dJdy[end] = dJdyₘ 
 
-    # yₘ = ne.outputs[end] # output of final layer
+    [a.=0 for a in nwd.dJdθ]
+    [a.=0 for a in nwd.dJdy[1:end-1]]
+    nwd.dJdx.=0
 
-    # # Evaluate the gradient of the MSE cost function
-    # J = sum((yₘ.-y).^2) # Cost function 
-    # dJdyₘ = (yₘ.-y)' # dJ/dyₘ
+    propagate_gradient!(nwd, m)
 
-    ng.dJdy[end] = dJdyₘ 
-
-    propagate_gradient!(ng, m)
-
-    return ng
+    return collect.(adjoint.(nwd.dJdθ))
 end
 
 # Function propagates gradients starting at the output of layer i_layer towards its parameters, all parent layers and their parameters and the network inputs.
-function propagate_gradient!(ng::NetworkGradient, i_layer::Integer)
+function propagate_gradient!(nwd::NetworkWithData, i_layer::Integer)
     #### Backpropagates gradients at the output of layer i_layer across that layer towards its inputs and parameters 
 
-    network = ng.network
-    ne = ng.evaluation
+    network = nwd.network
     layer = network.layers[i_layer]
 
     # loop over and gather all layer inputs
     connections = network.connections[i_layer] # input layers
-    xs = [i==0 ? ne.input : ne.outputs[i] for i in connections]
-    y = ne.outputs[i_layer]
-    dJdy = ng.dJdy[i_layer]
+    xs = [i==0 ? nwd.input : nwd.outputs[i] for i in connections]
+    y = nwd.outputs[i_layer]
+    dJdy = nwd.dJdy[i_layer]
     result = backprop(layer, xs..., y, dJdy) # contains dJdx₁,...,dJdxₙ,dJdθ
 
     #Adds term to a[i] or sets a[i] af a[i] contains nothing
-    @inline add!(a::Array, i, term) = isnothing(a[i]) ? a[i]=term : a[i].+=term
+    function add!(a::AbstractArray, term) 
+        # println(size(a))
+        # println(size(term))
+        a.+=term
+    end
+
+    # println(i_layer)
 
     for (k,i) in enumerate(connections) # the k-th input is layer i
         if i==0 
-            ng.dJdx .= result[k]
+            # println("dJdx")
+            add!(nwd.dJdx, result[k])
         else
-            add!(ng.dJdy, i, result[k])
+            # println("dJdy")
+            add!(nwd.dJdy[i], result[k])
         end
     end
-    add!(ng.dJdθ, i_layer, result[end])
+    add!(nwd.dJdθ[i_layer], result[end])
 
     #### recursively propagates gradients further backwards through the network
 
     for i in connections
-        i>0 && propagate_gradient!(ng, i) #for i<=0 we have base inputs; the propagation should end there.
+        i>0 && propagate_gradient!(nwd, i) #for i<=0 we have base inputs; the propagation should end there.
     end
 end
 
 # Produces the gradient w.r.t. θ
-function ∇_θ(ng::NetworkGradient) 
-    return collect.(adjoint.(ng.dJdθ))
+function ∇_θ(nwd::NetworkWithData) 
+    return collect.(adjoint.(nwd.dJdθ))
 end
 
 

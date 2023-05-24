@@ -62,8 +62,6 @@ end
 (l2reg::L2Regularization)(θ) = (l2reg.α/2) * sum(θ.*θ)
 ∇_θ(l2reg::L2Regularization, θ) = l2reg.α*θ
 
-
-
 # # TODO: Remove this or move somewhere else?
 # # TODO: Shouldn't Loss here be Cost instead?
 # using Datasets 

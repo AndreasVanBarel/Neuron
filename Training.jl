@@ -8,18 +8,16 @@ using Networks
 using Datasets
 using Lossfunctions
 
-function compute_gradient(network, cost, sample)
+function compute_gradient(network::NetworkWithData, cost, sample)
     x,y = sample.x, sample.y
 
-    ne = network(x, save)
-    yₘ = ne.outputs[end] # output of final layer
+    yₘ = network(x) # output of final layer
 
     # Evaluate the gradient of the cost function
     J = cost(yₘ, y)
     dJdyₘ = ∇(cost, yₘ, y)'
 
-    ng = gradient(ne, dJdyₘ)
-    grad = ∇_θ(ng)
+    grad = gradient(network, dJdyₘ)
     return grad
 end
 

@@ -1,5 +1,6 @@
 # Just some random tests etc 
 
+### Produces a 28x28 image resembling the MNIST dataset training images.
 m = InputDraw.distance_matrix(line,28,28)
 # Show a sample
 heatmap(rotl90(m))
@@ -7,19 +8,9 @@ heatmap(rotl90(m))
 f(x) = min(1,max(1.8-20x,0))
 heatmap(rotl90(f.(m)))
 
-
 heatmap(rotl90(x_test[:,:,1]))
 
-# Rough description of desired behaviour
-# 0       ->1
-# 0.025   ->1
-# 0.05    ->0
-# >0.05   ->0
-
-
-# A Random permutation generator 
-
-
+### A Random permutation generator 
 function random_permutation!(E::AbstractVector{T}) where T
 # Create data (1,r1), ..., (n,rn) where r1,...,rn are just random numbers
 # Then sort those on the second element. The first elements will then be a random permutation of 1,...,n.
@@ -40,4 +31,7 @@ end
 random_permutation(E::AbstractVector{T}) where T = random_permutation!(collect(E))
 random_permutation(n::Int) = random_permutation!(collect(1:n))
 
-a
+# Glorot Uniform initialization
+# Generates uniform distribution between -sqrt(6/(x+y)) and sqrt(6/(x+y))
+glorot_uniform(x,y) = (2 .*rand(x,y) .-1).*sqrt(6/(x+y))
+

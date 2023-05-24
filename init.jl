@@ -1,5 +1,5 @@
 # run at start
-cd("C:\\Users\\Andreas\\Neuron")
+# cd("C:\\Users\\Andreas\\Neuron")
 push!(LOAD_PATH, pwd())
 using Pkg
 Pkg.activate("./env")  

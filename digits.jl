@@ -6,6 +6,7 @@ using MLDatasets
 using Plots
 using Lossfunctions
 using Statistics
+using Datasets
 
 network = Network(ReLU(784,256), ReLU(256,10), Softmax())
 
@@ -34,17 +35,30 @@ cost = CrossEntropy()
 losses = [cost(network(s.x),s.y) for s in training_data]
 mean(losses)
 
-steps = 100
-epochs = 100
+steps = 100000
+epochs = 5
 perf_log = Float64[]
 
 for epoch = 1:epochs
-    train!(network, cost, training_data, steps)
+    adam!(network, cost, training_data, steps; learning_rate = i->1e-3)
     L = mean(cost(network(s.x),s.y) for s in training_data)
     push!(perf_log, L)
     println("After epoch $epoch, the loss is $L")
-end
+    # println("$epoch finished")
+end 
 
 plot(1:length(perf_log), perf_log, xscale=:log10)
 mean(cost(network(s.x),s.y) for s in training_data)
 network.(getproperty.(training_data,:x))
+
+# Check a single sample
+i=1
+network(training_data[i].x)
+training_data[i].y
+
+# Check accuracy 
+function accuracy(network, dataset)
+    correct = sum(argmax(network(s.x)) == argmax(s.y) for s in dataset)
+    return correct/length(dataset)
+end
+accuracy(network, training_data)
