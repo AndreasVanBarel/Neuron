@@ -8,8 +8,6 @@ using Lossfunctions
 using Statistics
 using Datasets
 
-network = Network(ReLU(784,256), ReLU(256,10), Softmax())
-
 function onehot(i,n)
     v = zeros(n)
     v[i] = 1.0
@@ -32,20 +30,28 @@ test_data = get_test_data()
 
 cost = CrossEntropy()
 
+network = Network(ReLU(784,256), ReLU(256,10), Softmax())
+network_with_data = allocate(network, training_data[1].x)
+
+
 losses = [cost(network(s.x),s.y) for s in training_data]
 mean(losses)
 
-steps = 100000
-epochs = 5
+steps = 1000
+epochs = 1
 perf_log = Float64[]
 
-for epoch = 1:epochs
-    adam!(network, cost, training_data, steps; learning_rate = i->1e-3)
-    L = mean(cost(network(s.x),s.y) for s in training_data)
-    push!(perf_log, L)
-    println("After epoch $epoch, the loss is $L")
-    # println("$epoch finished")
-end 
+function train(network_with_data)
+    for epoch = 1:epochs
+        adam!(network_with_data, cost, training_data, steps; learning_rate = i->1e-3)
+        #L = mean(cost(network(s.x),s.y) for s in training_data)
+        #push!(perf_log, L)
+        #println("After epoch $epoch, the loss is $L")
+        # println("$epoch finished")
+    end 
+end
+VSCodeServer.@profview train(network_with_data)
+@time train(network_with_data)
 
 plot(1:length(perf_log), perf_log, xscale=:log10)
 mean(cost(network(s.x),s.y) for s in training_data)

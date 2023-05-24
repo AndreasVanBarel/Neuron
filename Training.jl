@@ -23,11 +23,10 @@ end
 
 # NOTE: Batch size not yet implemented
 # Stochastic Gradient Descent
-function sgd!(network::Network, cost::AbstractCost, training_data, iterations::Int;
+function sgd!(network::NetworkWithData, cost::AbstractCost, training_data, iterations::Int;
     batch_size = 1,
     learning_rate = linear_decay, 
-    perf_log=nothing, 
-    test_data=training_data)
+    perf_log=nothing)
 
     α(i::Int) = learning_rate(i) # learning rate during iteration i
 
@@ -35,7 +34,7 @@ function sgd!(network::Network, cost::AbstractCost, training_data, iterations::I
 
     for i = 1:iterations
         # take random element from training_data 
-        sample = training_data[rand(1:m)]
+        sample = training_data[i]
         grad = compute_gradient(network, cost, sample)
 
         Δθ = -grad.*α(i)
@@ -43,63 +42,61 @@ function sgd!(network::Network, cost::AbstractCost, training_data, iterations::I
         θ = get_θ(network)
         set_θ!(network, θ.+Δθ)  
 
-        if !isnothing(perf_log); perf_log[i] = cost(network, test_data); end
+        if !isnothing(perf_log); perf_log[i] = cost(network, sample); end
     end
 end
 
 # NOTE: Batch size not yet implemented
 # AdaGrad
-function adagrad!(network::Network, cost::AbstractCost, training_data, iterations::Int;
+function adagrad!(network::NetworkWithData, cost::AbstractCost, training_data, iterations::Int;
     batch_size = 1,
     learning_rate = i->1, 
-    perf_log=nothing, 
-    test_data=training_data)
+    perf_log=nothing)
 
     rmsprop!(network, cost, training_data, iterations; 
-        batch_size = batch_size, learning_rate = learning_rate, perf_log = perf_log, test_data = test_data, ρ = 1, ρ2 = 0)
+        batch_size = batch_size, learning_rate = learning_rate, perf_log = perf_log, ρ = 1, ρ2 = 0)
 end
 
 # NOTE: Batch size not yet implemented
 # RMSProp
-function rmsprop!(network::Network, cost::AbstractCost, training_data, iterations::Int;
+function rmsprop!(network::NetworkWithData, cost::AbstractCost, training_data, iterations::Int;
     batch_size = 1,
     learning_rate = i->1e-3, 
     perf_log=nothing, 
-    test_data=training_data,
     ρ = 0.9, ρ2 = nothing) 
 
-    if ρ2 == nothing; ρ2 = ρ; end
+    if ρ2 === nothing; ρ2 = ρ; end
 
     α(i::Int) = learning_rate(i) # learning rate during iteration i
     δ = 1e-7 # for numerical stability
 
     m = length(training_data)
 
-    r = compute_gradient(network, cost, sample).*0 # Accumulation of the squared gradient #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient corresponding to a given network. 
+    θ = get_θ(network) # Preallocation for all θ
+    r = get_θ(network).*0 # Accumulation of the squared gradient 
+    
+    #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient corresponding to a given network. 
     
     for i = 1:iterations
         # take random element from training_data 
-        sample = training_data[rand(1:m)]
+        sample = training_data[i]
         g = compute_gradient(network, cost, sample)
 
-        r = [ρ.*r[i] .+ (1-ρ2).*g[i].*g[i] for i in eachindex(r)]
+        [r[k] .= ρ.*r[k] .+ (1-ρ2).*g[k].*g[k] for k in eachindex(r)]
+        [θ[k] .+= -g[k].*α(i)./(δ.+sqrt.(r[k])) for k in eachindex(g)]
 
-        Δθ = [-g[i].*α(i)./(δ.+sqrt.(r[i])) for i in eachindex(g)]
+        set_θ!(network, θ)  
 
-        θ = get_θ(network)
-        set_θ!(network, θ.+Δθ)  
-
-        if !isnothing(perf_log); perf_log[i] = cost(network, test_data); end
+        if !isnothing(perf_log); perf_log[i] = cost(network, sample); end
     end
 end
 
 # NOTE: Batch size not yet implemented
 # Adam # Adaptive moments
-function adam!(network::Network, cost::AbstractCost, training_data, iterations::Int;
+function adam!(network::NetworkWithData, cost::AbstractCost, training_data, iterations::Int;
     batch_size = 1,
     learning_rate = i->1e-3, 
     perf_log=nothing, 
-    test_data=training_data,
     ρ1 = 0.9, ρ2 = 0.999)
 
     α(i::Int) = learning_rate(i) # learning rate during iteration i
@@ -107,25 +104,27 @@ function adam!(network::Network, cost::AbstractCost, training_data, iterations::
 
     m = length(training_data)
 
-    r = s = compute_gradient(network, cost, training_data[1]).*0 # Accumulation of the squared gradient #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient corresponding to a given network. 
+    θ = get_θ(network) # Preallocation for all θ
+    s = get_θ(network).*0 # Accumulation of the gradient
+    r = get_θ(network).*0 # Accumulation of the squared gradient 
+    #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient corresponding to a given network. 
     
     for i = 1:iterations
         # take random element from training_data 
-        sample = training_data[rand(1:m)]
+        sample = training_data[i]
         g = compute_gradient(network, cost, sample)
 
-        s = [ρ1.*s[i] .+ (1-ρ1).*g[i] for i in eachindex(r)] # update biased first moment estimate
-        r = [ρ2.*r[i] .+ (1-ρ2).*g[i].*g[i] for i in eachindex(r)] # update biased second moment estimate
+        for k in eachindex(s)
+            s[k].=ρ1.*s[k] .+ (1-ρ1).*g[k] # update biased first moment estimate
+            s[k].=s[k]./(1-ρ1^i) # correct bias in first moment
+            r[k].=ρ2.*r[k] .+ (1-ρ2).*g[k].*g[k] # update biased second moment estimate
+            r[k].=r[k]./(1-ρ2^i) # correct bias in second moment
+            θ[k] .+= -s[k].*α(i)./(δ.+sqrt.(r[k]))
+        end
 
-        s = s./(1-ρ1^i) # correct bias in first moment
-        r = r./(1-ρ2^i) # correct bias in second moment
+        set_θ!(network, θ)  
 
-        Δθ = [-s[i].*α(i)./(δ.+sqrt.(r[i])) for i in eachindex(g)]
-
-        θ = get_θ(network)
-        set_θ!(network, θ.+Δθ)  
-
-        if !isnothing(perf_log); perf_log[i] = cost(network, test_data); end
+        if !isnothing(perf_log); perf_log[i] = cost(network, sample); end
     end
 end
 

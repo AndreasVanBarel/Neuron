@@ -1,15 +1,11 @@
 # This module defines layers and their combination into networks
 module Networks
 
-export Layer, get_θ, set_θ!
+export Layer, get_θ, set_θ!, size_θ
 export LU, ReLU, Softmax, ConstUnit
 export Model, Network
-export eval_network
-export NetworkWithData, allocate!, allocate, size_params
-export NetworkEvaluation, allocate!
-export save 
-#TODO Fix this save, it's ugly, replace with parameter ..., save=true)
-export NetworkGradient, backprop, gradient, ∇_θ
+export NetworkWithData, allocate!, allocate
+export gradient, backprop, ∇_θ
 
 import Base.show 
 import Nablas.∇_θ
@@ -41,22 +37,22 @@ evaluate(L::Layer, input) = L(inputs...)
 # get_θ returns all parameters into a single Array
 get_θ(L::Layer) = Float64[] # fallback empty Array
 # set_θ! sets all parameters from a single provided Array
-set_θ!(L::Layer, θ) = θ == Float64[] ? L : error("The parameter format does not match the required format")
+set_θ!(L::Layer, θ) = return # This layer has no parameters
 
 #### Outputs a constant value
 mutable struct ConstUnit <: Layer
     const_value
 end 
 (c::ConstUnit)() = c.const_value
-get_θ(c::ConstUnit) = c.const_value
-set_θ!(c::ConstUnit, θ) = (const_value = θ; return c)
+get_θ(c::ConstUnit) = copy(c.const_value)
+set_θ!(c::ConstUnit, θ) = (const_value = θ; return)
 
 function backprop(c::ConstUnit, y, dJdy) 
     dJdθ = dJdy
     return dJdθ
 end
 
-size_params(c::ConstUnit) = size(c.const_value)
+size_θ(c::ConstUnit) = size(c.const_value)
 # size_input(c::ConstUnit) = 0
 # size_output(c::ConstUnit) = size(c.const_value)
 
@@ -68,12 +64,13 @@ end
 function (lu::LU)(x)
     return lu.W*x.+lu.b
 end
+
 get_θ(lu::LU) = [lu.W lu.b]
 set_θ!(lu::LU, Wb) = set_θ!(lu, Wb[:,1:end-1], Wb[:,end])
 function set_θ!(lu::LU, W, b)
     lu.W = W 
     lu.b = b
-    return lu
+    return
 end
 
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
@@ -81,7 +78,7 @@ function LU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k))
     LU(init_W, init_b)
 end
 
-size_params(lu::LU) = size(lu.W) .+ (0,1)
+size_θ(lu::LU) = size(lu.W) .+ (0,1)
 # size_input(lu::LU) = size(lu.W)[2]
 # size_output(lu::LU) = size(lu.W)[1] # Also equals length(lu.b)
 
@@ -117,7 +114,7 @@ set_θ!(relu::ReLU, Wb) = set_θ!(relu, Wb[:,1:end-1], Wb[:,end])
 function set_θ!(relu::ReLU, W, b)
     relu.W = W 
     relu.b = b
-    return relu
+    return
 end
 
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
@@ -125,7 +122,7 @@ function ReLU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k))
     ReLU(init_W, init_b)
 end
 
-size_params(relu::ReLU) = size(relu.W) .+ (0,1)
+size_θ(relu::ReLU) = size(relu.W) .+ (0,1)
 
 # size_input(relu::ReLU) = size(relu.W)[2]
 # size_output(relu::ReLU) = size(relu.W)[1] # Also equals length(relu.b)
@@ -161,7 +158,7 @@ function (s::Softmax)(z)
     return exps./sum(exps)
 end
 
-size_params(s::Softmax) = (0,1)
+size_θ(s::Softmax) = (0,1)
 # size_input(s::Softmax) = ?
 # size_output(s::Softmax) = ?
 
@@ -214,7 +211,7 @@ end
 get_θ(n::Network) = get_θ.(n.layers)
 function set_θ!(n::Network, θs) 
     set_θ!.(n.layers, θs)
-    return n
+    return
 end
 
 ############################
@@ -243,6 +240,14 @@ mutable struct NetworkWithData
     dJdx # The gradient w.r.t. the input of the network
     const dJdy::Vector{Any} # dJdy[i] provides dJ/dLᵢ with yᵢ the output of the i-th layer of the network. Some of these may remain empty if not needed.
     const dJdθ::Vector{Any} # dJdθ[i] provides dJ/dθᵢ with θᵢ the parameters of the i-th layer of the network. Some of these may remain empty if not needed.
+end
+
+get_θ(nwd::NetworkWithData) = get_θ(nwd.network)
+set_θ!(nwd::NetworkWithData, θs) = set_θ!(nwd.network, θs)
+
+function Base.show(io::IO, nwd::NetworkWithData)
+    show(nwd.network)
+    print(" where intermediate evaluations and backpropagated gradients are stored.")
 end
 
 # Creates an empty, unallocated NetworkWithData object for the given network
@@ -283,7 +288,7 @@ function allocate!(nwd::NetworkWithData, input, i_layer::Integer=length(nwd.netw
     # Allocate for layer i_layer
     nwd.outputs[i_layer] = output
     nwd.dJdy[i_layer] = similar(output')
-    nwd.dJdθ[i_layer] = Array{Float64}(undef, reverse(size_params(network.layers[i_layer])))
+    nwd.dJdθ[i_layer] = Array{Float64}(undef, reverse(size_θ(network.layers[i_layer])))
     return output
 end
 
@@ -319,13 +324,15 @@ function gradient(nwd::NetworkWithData, dJdyₘ)
 
     nwd.dJdy[end] = dJdyₘ 
 
+    # Reset all gradient information to 0
+    # (This is to make backpropagation easy; it can just add whatever it produces)
     [a.=0 for a in nwd.dJdθ]
     [a.=0 for a in nwd.dJdy[1:end-1]]
     nwd.dJdx.=0
 
     propagate_gradient!(nwd, m)
 
-    return collect.(adjoint.(nwd.dJdθ))
+    return adjoint.(nwd.dJdθ)
 end
 
 # Function propagates gradients starting at the output of layer i_layer towards its parameters, all parent layers and their parameters and the network inputs.
@@ -369,12 +376,11 @@ function propagate_gradient!(nwd::NetworkWithData, i_layer::Integer)
     end
 end
 
-# Produces the gradient w.r.t. θ
+# OBSOLETE; use gradient(...)
+# Extracts the last calculated gradient w.r.t. θ
 function ∇_θ(nwd::NetworkWithData) 
     return collect.(adjoint.(nwd.dJdθ))
 end
-
-
 
 
 # Thoughts on the Architecture of the Network object 
