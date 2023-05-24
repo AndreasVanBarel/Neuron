@@ -1,15 +1,16 @@
 using Networks
 import LinearAlgebra.norm
+using Test
 
 relus = [ReLU(rand(3,3), rand(3)) for i in 1:3]
 network = Network(relus..., Softmax())
+network = allocate(network, rand(3))
 
 input = rand(3)
 out = network(input)
-ne = network(input, save)
 
-ng = gradient(ne, ones(size(out))')
-grad = ∇_θ(ng)
+dJdy_end = ones(size(out))
+grad = gradient(network, dJdy_end)
 
 #########
 # Backprop testing
@@ -20,14 +21,14 @@ function finite_diff(f,x,y)
     for i in eachindex(x)
         Δx = zeros(size(x))
         Δx[i] = ϵ
-        dydx[:,i] = (f(x+Δx) - y)./ϵ
+        dydx[:,i] .= (f(x+Δx) .- y)./ϵ
     end
     return dydx
 end
 function backprop_test(f,x,y)
     dydx = Matrix{Float64}(undef,length(y), length(x))
     for i in eachindex(y)
-        dJdy = zeros(size(y))'
+        dJdy = zeros(size(y))
         dJdy[i] = 1 
         dydx[i,:] = backprop(f,x,y,dJdy)[1]
     end
@@ -41,7 +42,7 @@ function finite_diffθ(f,x,y)
         Δθ = zeros(size(θ))
         Δθ[i] = ϵ
         set_θ!(f,θ+Δθ)
-        dydθ[:,i] = (f(x) - y)./ϵ
+        dydθ[:,i] .= (f(x) .- y)./ϵ
     end
     set_θ!(f,θ) # Restore the initial parameters
     return dydθ
@@ -50,9 +51,9 @@ function backprop_testθ(f,x,y)
     θ = get_θ(f)
     dydθ = Matrix{Float64}(undef,length(y), length(θ))
     for i in eachindex(y)
-        dJdy = zeros(size(y))'
+        dJdy = zeros(size(y))
         dJdy[i] = 1 
-        dydθ[i,:] = reshape(backprop(f,x,y,dJdy)[2]', length(θ))
+        dydθ[i,:] = reshape(backprop(f,x,y,dJdy)[2], length(θ))
     end
     return dydθ
 end
