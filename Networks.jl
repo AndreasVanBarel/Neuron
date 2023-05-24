@@ -44,8 +44,12 @@ mutable struct ConstUnit <: Layer
     const_value
 end 
 (c::ConstUnit)() = c.const_value
-get_θ(c::ConstUnit) = copy(c.const_value)
+get_θ(c::ConstUnit) = c.const_value
 set_θ!(c::ConstUnit, θ) = (const_value = θ; return)
+
+function Base.show(io::IO, c::ConstUnit)
+    print(io, "ConstUnit (outputs constant value)")
+end
 
 function backprop(c::ConstUnit, y, dJdy) 
     dJdθ = dJdy
@@ -58,27 +62,28 @@ size_θ(c::ConstUnit) = size(c.const_value)
 
 #### Wx+b
 mutable struct LU <: Layer #linear unit
-    W::Matrix{Float64} # weight matrix 
-    b::Vector{Float64} # bias vector
+    Wb::Matrix{Float64} # weight matrix and bias vector in the last column
 end
 function (lu::LU)(x)
-    return lu.W*x.+lu.b
+    W = view(lu.Wb, :, 1:size(lu.Wb,2)-1)
+    b = view(lu.Wb, :, size(lu.Wb,2))
+    return W*x.+b
 end
 
-get_θ(lu::LU) = [lu.W lu.b]
-set_θ!(lu::LU, Wb) = set_θ!(lu, Wb[:,1:end-1], Wb[:,end])
-function set_θ!(lu::LU, W, b)
-    lu.W = W 
-    lu.b = b
-    return
+get_θ(lu::LU) = lu.Wb
+set_θ!(lu::LU, Wb) = (lu.Wb=Wb; return)
+
+function Base.show(io::IO, lu::LU)
+    print(io, "LU (Linear Unit)")
 end
 
+LU(W,b) = LU([W b])
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
 function LU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k)) 
     LU(init_W, init_b)
 end
 
-size_θ(lu::LU) = size(lu.W) .+ (0,1)
+size_θ(lu::LU) = size(lu.Wb)
 # size_input(lu::LU) = size(lu.W)[2]
 # size_output(lu::LU) = size(lu.W)[1] # Also equals length(lu.b)
 
@@ -93,7 +98,9 @@ function backprop(lu::LU, x, y, dJdy)
     # Equivalently, and more efficiently, we can set y[i] ⟹ dJdy[i] = 0.
     # dJ/db = dJ/dy * dy/db = dJ/dy
 
-    dJdx = dJdy*lu.W
+    W = view(lu.Wb, :, 1:size(lu.Wb,2)-1)
+
+    dJdx = dJdy*W
     dJdW = x*dJdy #outer product
     dJdb = dJdy
 
@@ -103,26 +110,27 @@ end
 
 #### max(0,Wx+b)
 mutable struct ReLU <: Layer #Rectified linear unit
-    W::Matrix{Float64} # weight matrix 
-    b::Vector{Float64} # bias vector
+    Wb::Matrix{Float64} # weight matrix and bias vector in the last column
 end
 function (relu::ReLU)(x)
-    return max.(0,relu.W*x.+relu.b)
+    W = view(relu.Wb, :, 1:size(relu.Wb,2)-1)
+    b = view(relu.Wb, :, size(relu.Wb,2))
+    return max.(0,W*x.+b)
 end
-get_θ(relu::ReLU) = [relu.W relu.b]
-set_θ!(relu::ReLU, Wb) = set_θ!(relu, Wb[:,1:end-1], Wb[:,end])
-function set_θ!(relu::ReLU, W, b)
-    relu.W = W 
-    relu.b = b
-    return
+get_θ(relu::ReLU) = relu.Wb
+set_θ!(relu::ReLU, Wb) = (relu.Wb=Wb; return)
+
+function Base.show(io::IO, relu::ReLU)
+    print(io, "ReLU (Rectified Linear Unit)")
 end
 
+ReLU(W,b) = ReLU([W b])
 # Construct a dense ReLU mapping i inputs to k outputs and fill the parameters with random values
 function ReLU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k)) 
     ReLU(init_W, init_b)
 end
 
-size_θ(relu::ReLU) = size(relu.W) .+ (0,1)
+size_θ(relu::ReLU) = size(relu.Wb)
 
 # size_input(relu::ReLU) = size(relu.W)[2]
 # size_output(relu::ReLU) = size(relu.W)[1] # Also equals length(relu.b)
@@ -142,7 +150,9 @@ function backprop(relu::ReLU, x, y, dJdy)
         dJdy_0[i] = y[i] == 0 ? 0 : dJdy[i]
     end
 
-    dJdx = dJdy_0*relu.W
+    W = view(relu.Wb, :, 1:size(relu.Wb,2)-1)
+
+    dJdx = dJdy_0*W
     dJdW = x*dJdy_0 #outer product
     dJdb = dJdy_0
 
@@ -161,6 +171,10 @@ end
 size_θ(s::Softmax) = (0,1)
 # size_input(s::Softmax) = ?
 # size_output(s::Softmax) = ?
+
+function Base.show(io::IO, s::Softmax)
+    print(io, "Softmax")
+end
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 

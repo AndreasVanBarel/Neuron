@@ -104,10 +104,10 @@ function adam!(network::NetworkWithData, cost::AbstractCost, training_data, iter
 
     m = length(training_data)
 
-    θ = get_θ(network) # Preallocation for all θ
+    θ = get_θ(network) # Gets pointers to all θ in the network
     s = get_θ(network).*0 # Accumulation of the gradient
     r = get_θ(network).*0 # Accumulation of the squared gradient 
-    #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient corresponding to a given network. 
+    #NOTE: Should implement a function in Networks to return an empty (uninitialized or zero) gradient (or parameter) vector corresponding to a given network. 
     
     for i = 1:iterations
         # take random element from training_data 
@@ -119,10 +119,12 @@ function adam!(network::NetworkWithData, cost::AbstractCost, training_data, iter
             s[k].=s[k]./(1-ρ1^i) # correct bias in first moment
             r[k].=ρ2.*r[k] .+ (1-ρ2).*g[k].*g[k] # update biased second moment estimate
             r[k].=r[k]./(1-ρ2^i) # correct bias in second moment
-            θ[k] .+= -s[k].*α(i)./(δ.+sqrt.(r[k]))
+            θ[k] .+= .-s[k].*α(i)./(δ.+sqrt.(r[k])) #updates θ ← θ + Δθ
         end
 
-        set_θ!(network, θ)  
+        set_θ!(network, θ) 
+        #note that in fact the network already points to θ for its parameters
+        #in case something gets allocated spuriously anyway, this is safe.
 
         if !isnothing(perf_log); perf_log[i] = cost(network, sample); end
     end
