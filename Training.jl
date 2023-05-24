@@ -15,7 +15,7 @@ function compute_gradient(network::NetworkWithData, cost, sample)
 
     # Evaluate the gradient of the cost function
     J = cost(yₘ, y)
-    dJdyₘ = ∇(cost, yₘ, y)'
+    dJdyₘ = ∇(cost, yₘ, y)
 
     grad = gradient(network, dJdyₘ)
     return grad

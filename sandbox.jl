@@ -37,11 +37,18 @@ glorot_uniform(x,y) = (2 .*rand(x,y) .-1).*sqrt(6/(x+y))
 
 
 ####
-sample = trainig_data[1]
+sample = training_data[1]
 x,y = sample.x, sample.y
 
 yₘ = network(x) # output of final layer
 
 # Evaluate the gradient of the cost function
 J = cost(yₘ, y)
-dJdyₘ = ∇(cost, yₘ, y)'
+dJdyₘ = ∇(cost, yₘ, y)
+
+nwd = allocate(network, x)
+
+θ = get_θ(nwd)
+inspect(θ)
+grad = gradient(nwd,dJdyₘ)
+inspect(grad)

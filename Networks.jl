@@ -10,6 +10,8 @@ export gradient, backprop, ∇_θ
 import Base.show 
 import Nablas.∇_θ
 
+import LinearAlgebra.dot
+
 # ToDo: For consistency, replace the naming "output" and "outputs" to "y" for layer outputs 
 # ToDo: Also replace the input by "x"
 
@@ -152,11 +154,11 @@ function backprop(relu::ReLU, x, y, dJdy)
 
     W = view(relu.Wb, :, 1:size(relu.Wb,2)-1)
 
-    dJdx = dJdy_0*W
-    dJdW = x*dJdy_0 #outer product
+    dJdx = W'*dJdy_0
+    dJdW = dJdy_0*x' #outer product
     dJdb = dJdy_0
 
-    dJdθ = [dJdW; dJdb]
+    dJdθ = [dJdW dJdb]
     return dJdx, dJdθ
 end
 
@@ -168,7 +170,7 @@ function (s::Softmax)(z)
     return exps./sum(exps)
 end
 
-size_θ(s::Softmax) = (0,1)
+size_θ(s::Softmax) = (0,)
 # size_input(s::Softmax) = ?
 # size_output(s::Softmax) = ?
 
@@ -189,8 +191,8 @@ function backprop(::Softmax, x, y, dJdy)
     x = x.-maximum(x)
     v = exp.(x)
     s = sum(v)
-    dJdx = -(dJdy*v/s^2)*v' + dJdy.*v'/s
-    return dJdx, Float64[]'
+    dJdx = -(dJdy⋅v/s^2)*v + dJdy.*v/s
+    return dJdx, Float64[]
 end
 
 ################
@@ -260,8 +262,8 @@ get_θ(nwd::NetworkWithData) = get_θ(nwd.network)
 set_θ!(nwd::NetworkWithData, θs) = set_θ!(nwd.network, θs)
 
 function Base.show(io::IO, nwd::NetworkWithData)
-    show(nwd.network)
-    print(" where intermediate evaluations and backpropagated gradients are stored.")
+    show(io, nwd.network)
+    print(io, " with storage for intermediate evaluations and backpropagated gradients.")
 end
 
 # Creates an empty, unallocated NetworkWithData object for the given network
@@ -284,7 +286,7 @@ function allocate!(nwd::NetworkWithData, input, i_layer::Integer=length(nwd.netw
     if first
         nwd.outputs.=nothing #de-allocate the outputs
         nwd.input = input
-        nwd.dJdx = Array{Float64}(undef,size(input'))
+        nwd.dJdx = Array{Float64}(undef,size(input))
     end
 
     if i_layer == 0 # should return the network input 
@@ -301,8 +303,8 @@ function allocate!(nwd::NetworkWithData, input, i_layer::Integer=length(nwd.netw
 
     # Allocate for layer i_layer
     nwd.outputs[i_layer] = output
-    nwd.dJdy[i_layer] = similar(output')
-    nwd.dJdθ[i_layer] = Array{Float64}(undef, reverse(size_θ(network.layers[i_layer])))
+    nwd.dJdy[i_layer] = similar(output)
+    nwd.dJdθ[i_layer] = Array{Float64}(undef, size_θ(network.layers[i_layer]))
     return output
 end
 
@@ -346,7 +348,7 @@ function gradient(nwd::NetworkWithData, dJdyₘ)
 
     propagate_gradient!(nwd, m)
 
-    return adjoint.(nwd.dJdθ)
+    return nwd.dJdθ
 end
 
 # Function propagates gradients starting at the output of layer i_layer towards its parameters, all parent layers and their parameters and the network inputs.
