@@ -5,12 +5,11 @@ export Layer, get_θ, set_θ!, size_θ
 export LU, ReLU, Softmax, ConstUnit
 export Model, Network
 export NetworkWithData, allocate!, allocate
-export gradient, backprop, ∇_θ
+export gradient, backprop
 
 import Base.show 
-import Nablas.∇_θ
 
-import LinearAlgebra.dot
+import LinearAlgebra: dot, ⋅
 
 # ToDo: For consistency, replace the naming "output" and "outputs" to "y" for layer outputs 
 # ToDo: Also replace the input by "x"
@@ -27,19 +26,11 @@ abstract type Layer end
 
 evaluate(L::Layer, input) = L(inputs...)
 (L::Layer)(inputs...) = error("Layer has no implementation") # fallback
-(L::Layer)(θ, input) = error("Layer has no implementation") # fallback
-# function (L::Layer)(input, θ) # fallback evaluation with given θ (inefficient)
-#     θₒ = get_θ(L)
-#     set_θ!(L,θ)
-#     output = L(input)
-#     set_θ!(L,θ₀) 
-#     return output
-# end  
 
-# get_θ returns all parameters into a single Array
+# get_θ returns all parameters as a single Array
 get_θ(L::Layer) = Float64[] # fallback empty Array
 # set_θ! sets all parameters from a single provided Array
-set_θ!(L::Layer, θ) = return # This layer has no parameters
+set_θ!(L::Layer, θ) = return # fallback
 
 #### Outputs a constant value
 mutable struct ConstUnit <: Layer
@@ -59,10 +50,8 @@ function backprop(c::ConstUnit, y, dJdy)
 end
 
 size_θ(c::ConstUnit) = size(c.const_value)
-# size_input(c::ConstUnit) = 0
-# size_output(c::ConstUnit) = size(c.const_value)
 
-#### Wx+b
+#### Linear Unit: y = Wx+b
 mutable struct LU <: Layer #linear unit
     Wb::Matrix{Float64} # weight matrix and bias vector in the last column
 end
@@ -86,8 +75,6 @@ function LU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k))
 end
 
 size_θ(lu::LU) = size(lu.Wb)
-# size_input(lu::LU) = size(lu.W)[2]
-# size_output(lu::LU) = size(lu.W)[1] # Also equals length(lu.b)
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 
@@ -102,15 +89,15 @@ function backprop(lu::LU, x, y, dJdy)
 
     W = view(lu.Wb, :, 1:size(lu.Wb,2)-1)
 
-    dJdx = dJdy*W
-    dJdW = x*dJdy #outer product
+    dJdx = W'*dJdy
+    dJdW = dJdy*x' #outer product
     dJdb = dJdy
 
-    dJdθ = [dJdW; dJdb]
+    dJdθ = [dJdW dJdb]
     return dJdx, dJdθ
 end
 
-#### max(0,Wx+b)
+#### Rectified Linear Unit y = max(0,Wx+b)
 mutable struct ReLU <: Layer #Rectified linear unit
     Wb::Matrix{Float64} # weight matrix and bias vector in the last column
 end
@@ -133,9 +120,6 @@ function ReLU(i::Int, k::Int; init_W=glorot_uniform(k,i), init_b=zeros(k))
 end
 
 size_θ(relu::ReLU) = size(relu.Wb)
-
-# size_input(relu::ReLU) = size(relu.W)[2]
-# size_output(relu::ReLU) = size(relu.W)[1] # Also equals length(relu.b)
 
 # Backpropagates the gradient of the cost function w.r.t. the layer output towards a gradient of the cost function w.r.t. the layer input and the layer parameters.
 # x     Layer input 
@@ -171,8 +155,6 @@ function (s::Softmax)(z)
 end
 
 size_θ(s::Softmax) = (0,)
-# size_input(s::Softmax) = ?
-# size_output(s::Softmax) = ?
 
 function Base.show(io::IO, s::Softmax)
     print(io, "Softmax")

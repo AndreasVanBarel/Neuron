@@ -1,12 +1,14 @@
 # In this script we attempt to learn to classify digits
 
-using Networks 
-using Training
-using MLDatasets
-using Plots
-using Lossfunctions
 using Statistics
+using Networks 
+using MLDatasets
+using Lossfunctions
 using Datasets
+using Training
+using ProgressMeter
+using Plots
+
 
 function onehot(i,n)
     v = zeros(n)
@@ -31,34 +33,34 @@ test_data = get_test_data()
 cost = CrossEntropy()
 
 network = Network(ReLU(784,256), ReLU(256,10), Softmax())
-network_with_data = allocate(network, training_data[1].x)
-
 
 losses = [cost(network(s.x),s.y) for s in training_data]
 mean(losses)
 
-steps = 1000
+steps = 60_000
 epochs = 1
+batch_size = 64
 perf_log = Float64[]
 
-function train(network_with_data)
+function train(network)
     for epoch = 1:epochs
-        adam!(network_with_data, cost, training_data, steps; learning_rate = i->1e-3)
-        #L = mean(cost(network(s.x),s.y) for s in training_data)
-        #push!(perf_log, L)
-        #println("After epoch $epoch, the loss is $L")
-        # println("$epoch finished")
+        println("$epoch started")
+        adam!(network, cost, training_data; batch_size = batch_size, learning_rate = i->1e-3)
+        L = mean(cost(network(s.x),s.y) for s in training_data)
+        push!(perf_log, L)
+        println("After epoch $epoch, the loss is $L")
     end 
 end
-VSCodeServer.@profview train(network_with_data)
-@time train(network_with_data)
+# VSCodeServer.@profview train(network)
+# @time train(network)
+train(network)
 
 plot(1:length(perf_log), perf_log, xscale=:log10)
 mean(cost(network(s.x),s.y) for s in training_data)
 network.(getproperty.(training_data,:x))
 
 # Check a single sample
-i=1
+i=3 # sample index
 network(training_data[i].x)
 training_data[i].y
 
@@ -68,3 +70,13 @@ function accuracy(network, dataset)
     return correct/length(dataset)
 end
 accuracy(network, training_data)
+accuracy(network, test_data)
+
+# saving parameters of the model
+using JLD
+θ = collect.(get_θ(network))
+save("theta3.jld", "θ", θ)
+
+# loading parameters of the model
+θ = load("theta3.jld")["θ"]
+set_θ!(network, θ)
