@@ -3,11 +3,12 @@ using Flux: train!, onehotbatch
 using MLUtils: flatten
 using ProgressMeter
 
-x_train, y_train = MLDatasets.MNIST(split=:train)[:]
-x_test, y_test = MLDatasets.MNIST(split=:test)[:]
-# Note that y_train and y_test are already in one-hot encoding
+x_train, y_train = MLDatasets.MNIST(split=:train)[:];
+x_test, y_test = MLDatasets.MNIST(split=:test)[:];
+# Note that y_train and y_test are not yet in one-hot encoding
 
-y_train_oh = Flux.onehotbatch(y_train, 0:9)
+y_train_oh = Flux.onehotbatch(y_train, 0:9) # Make one-hot encoding for y_train
+
 model = Chain(
     Dense(784, 256, relu),
     Dense(256, 32, relu), 

@@ -1,6 +1,10 @@
 # run at start
-# cd("C:\\Users\\Andreas\\Neuron")
-push!(LOAD_PATH, pwd())
+working_directory = @__DIR__
+cd(working_directory)
+if working_directory ∉ LOAD_PATH
+    push!(LOAD_PATH, working_directory) 
+end
+
 using Pkg
 Pkg.activate("./env")  
 
