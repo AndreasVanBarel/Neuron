@@ -1,4 +1,4 @@
-# In this script we attempt to learn to classify digits
+# In this script we attempt to learn to classify digits using the MNIST dataset
 
 using Statistics
 using Networks 
@@ -21,14 +21,14 @@ function get_training_data()
     data = [Sample(vec(d.features[:,:,i]), onehot(d.targets[i]+1, 10)) for i in 1:size(d.features,3)]
     return data
 end 
-training_data = get_training_data()
+training_data = get_training_data();
 
 function get_test_data()
     d = MNIST(split=:test)[:]
     data = [Sample(vec(d.features[:,:,i]), onehot(d.targets[i]+1, 10)) for i in 1:size(d.features,3)]
     return data
 end 
-test_data = get_test_data()
+test_data = get_test_data();
 
 cost = CrossEntropy()
 
@@ -45,15 +45,41 @@ perf_log = Float64[]
 function train(network)
     for epoch = 1:epochs
         println("$epoch started")
-        adam!(network, cost, training_data; batch_size = batch_size, learning_rate = i->1e-3)
-        L = mean(cost(network(s.x),s.y) for s in training_data)
-        push!(perf_log, L)
-        println("After epoch $epoch, the loss is $L")
+        adam!(network, cost, training_data[1:steps]; batch_size = batch_size, learning_rate = i->1e-3)
+        # L = mean(cost(network(s.x),s.y) for s in training_data)
+        # push!(perf_log, L)
+        # println("After epoch $epoch, the loss is $L")
     end 
 end
-# VSCodeServer.@profview train(network)
-# @time train(network)
+VSCodeServer.@profview train(network)
+@time train(network)
 train(network)
+
+
+optimizer = Adam(network)
+try
+    optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
+catch e 
+    global exc = e 
+end
+
+@time optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
+VSCodeServer.@profview optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 plot(1:length(perf_log), perf_log, xscale=:log10)
 mean(cost(network(s.x),s.y) for s in training_data)

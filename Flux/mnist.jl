@@ -15,6 +15,12 @@ model = Chain(
     softmax
 ) |> gpu
 
+model = Chain(
+    Dense(784, 256, relu),
+    Dense(256, 10, relu), 
+    softmax
+) |> gpu
+
 # The model encapsulates parameters, randomly initialised. Its initial output is:
 out1 = model(flatten(x_train) |> gpu) |> cpu     
  
@@ -22,11 +28,11 @@ out1 = model(flatten(x_train) |> gpu) |> cpu
 loader = Flux.DataLoader((x_train, y_train_oh) |> gpu, batchsize=64, shuffle=true);
 # 16-element DataLoader with first element: (2×64 Matrix{Float32}, 2×64 OneHotMatrix)
 
-optim = Flux.setup(Flux.Adam(0.001), model)  # will store optimiser momentum, etc.
+optim = Flux.setup(Flux.Adam(1e-3), model)  # will store optimiser momentum, etc.
 
 # Training loop, using the whole data set 1000 times:
 losses = []
-@showprogress for epoch in 1:1000
+@showprogress for epoch in 1:10
     for (x, y) in loader
         x = flatten(x)
         y = flatten(y)
@@ -47,21 +53,20 @@ out_test = model(flatten(x_test) |> gpu) |> cpu  # each column gives probability
 mean(getindex.(argmax(out_train,dims=1),1).-1 .== y_train')  # accuracy training set
 mean(getindex.(argmax(out_test,dims=1),1).-1 .== y_test')  # accuracy test set
 
-##
-using Plots  # to draw the above figure
+## Plotting convergence of loss to zero
+using Plots  
 
+n = length(loader)
 epoch_means = mean.(Iterators.partition(losses, n))
 plot(losses; xaxis=(:log10, "iteration"),
     yaxis="loss", label="per batch")
-n = length(loader)
 plot!(n:n:length(losses), mean.(Iterators.partition(losses, n)),
     label="epoch mean", dpi=200)
 
 # Show a sample
 heatmap(rotl90(x_train[:,:,132]))
 
-##
-# Input a new sample from drawing
+## Input a new sample from drawing
 using InputDraw 
 lines = make_canvas()
 
