@@ -376,17 +376,16 @@ end
 
 # OBSOLETE; use gradient(...)
 # Extracts the last calculated gradient w.r.t. θ
-function ∇_θ(nwd::NetworkWithData) 
-    return collect.(adjoint.(nwd.dJdθ))
-end
+# function ∇_θ(nwd::NetworkWithData) 
+#     return collect.(adjoint.(nwd.dJdθ))
+# end
 
 
 # Thoughts on the Architecture of the Network object 
 #   Representation of the network 
 #       Have layers be their own thing, such that they can be evaluated separately (not referencing other layers as input)
 #       Have the connections between layers stored in the Network object 
-#   Second layer has as input the first layer etc 
-#
+#       Allow general connections, many to one and one to many
 
 #   Handling of evaluation 
 #       Having the output layer recursively reference and invoke evaluation of previous layers
@@ -396,10 +395,10 @@ end
 #
 #   Choice of where and how to store the network evaluation, if requested to do so. Either
 #       (1) Network object saves the last evaluation and gradient information, such that it can be extracted in some way. 
-#       (2) The evaluated data is stored in a new accompanying object, called, e.g., NetworkEvaluation.
+#       (2) The evaluated data is stored in a new accompanying object, called, e.g., NetworkWithData.
 #   Probably best to pick (2):
 #       Pros:   Can then be utilized only if storing the intermediate evaluation states is desired. 
-#               Actually parallelizable, since a single Network object can spawn multiple data evaluation objects in parallel.
+#               Actually parallelizable, since a single Network object can spawn multiple NetworkWithData objects in parallel.
 #               The Network object is then accessed in read-only.
 #       Cons:   Potentially additional complexity and duplication of certain implementation logic. 
 

@@ -31,64 +31,24 @@ end
 test_data = get_test_data();
 
 cost = CrossEntropy()
-
 network = Network(ReLU(784,256), ReLU(256,10), Softmax())
 
-losses = [cost(network(s.x),s.y) for s in training_data]
-mean(losses)
+perf_log = [mean(cost(network(s.x),s.y) for s in training_data)] # initial cost
 
-steps = 60_000
-epochs = 1
+epochs = 2
 batch_size = 64
-perf_log = Float64[]
+optimizer = Adam(network)
 
-function train(network)
+function train()
     for epoch = 1:epochs
-        println("$epoch started")
-        adam!(network, cost, training_data[1:steps]; batch_size = batch_size, learning_rate = i->1e-3)
-        # L = mean(cost(network(s.x),s.y) for s in training_data)
-        # push!(perf_log, L)
-        # println("After epoch $epoch, the loss is $L")
+        println("Epoch $epoch started...")
+        optimize(optimizer, cost, training_data; batch_size=batch_size)      
+        L = mean(cost(optimizer.network(s.x),s.y) for s in training_data)
+        push!(perf_log, L)
+        println("After epoch $epoch, the loss is $L")
     end 
 end
-VSCodeServer.@profview train(network)
-@time train(network)
-train(network)
-
-
-optimizer = Adam(network)
-try
-    optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
-catch e 
-    global exc = e 
-end
-
-@time optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
-VSCodeServer.@profview optimize(optimizer, cost, training_data[1:steps]; batch_size=batch_size)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-plot(1:length(perf_log), perf_log, xscale=:log10)
-mean(cost(network(s.x),s.y) for s in training_data)
-network.(getproperty.(training_data,:x))
-
-# Check a single sample
-i=3 # sample index
-network(training_data[i].x)
-training_data[i].y
+train()
 
 # Check accuracy 
 function accuracy(network, dataset)
@@ -97,6 +57,14 @@ function accuracy(network, dataset)
 end
 accuracy(network, training_data)
 accuracy(network, test_data)
+
+# Check a single sample
+i=3 # sample index
+network(training_data[i].x)
+training_data[i].y
+
+# Plot performance as function of epoch
+plot(1:length(perf_log), perf_log, xscale=:log10)
 
 # saving parameters of the model
 using JLD
