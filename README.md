@@ -51,7 +51,7 @@ epochs = 3
 batch_size = 64
 optimizer = Adam(network)
 
-# Define loss and accuracy for the 
+# Define loss and accuracy
 loss(network, dataset) = mean(cost(network(s.x),s.y) for s in dataset)
 accuracy(network, dataset) = mean(argmax(network(s.x)) == argmax(s.y) for s in dataset)
 
