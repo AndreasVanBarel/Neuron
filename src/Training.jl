@@ -5,9 +5,9 @@ export SGD, AdaGrad, RMSProp, Adam
 export linear_decay, reciprocal_decay
 export compute_gradient
 
-using Networks
-using Datasets
-using Lossfunctions
+using ..Networks
+using ..Datasets
+using ..Lossfunctions
 using Statistics
 using LinearAlgebra
 

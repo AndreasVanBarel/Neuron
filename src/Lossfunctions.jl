@@ -11,7 +11,7 @@ export ∇, ∇_θ
 export MSE, CrossEntropy
 export L2Regularization
 
-import Nablas: ∇, ∇_θ
+import ..Nablas: ∇, ∇_θ
 
 abstract type AbstractCost end 
 # For all AbstractCost, one can evaluate the cost in 

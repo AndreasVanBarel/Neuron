@@ -5,8 +5,7 @@ module Datasets
 export Sample 
 export Dataset
 
-import Base.getproperty
-import Base: getindex, setindex!, size
+import Base: getproperty, getindex, setindex!, size
 
 # A single input-output pair (x,y)
 struct Sample 

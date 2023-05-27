@@ -8,7 +8,6 @@ export NetworkWithData, allocate!, allocate
 export gradient, backprop
 
 import Base.show 
-
 import LinearAlgebra: dot, ⋅
 
 # ToDo: For consistency, replace the naming "output" and "outputs" to "y" for layer outputs 

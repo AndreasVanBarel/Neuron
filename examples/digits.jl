@@ -1,14 +1,12 @@
 # In this script we attempt to learn to classify digits using the MNIST dataset
 
+using Neuron
 using Statistics
-using Networks 
+
+# Assumes these packages are installed
 using MLDatasets
-using Lossfunctions
-using Datasets
-using Training
 using ProgressMeter
 using Plots
-
 
 function onehot(i,n)
     v = zeros(n)
