@@ -5,22 +5,24 @@ using Statistics
 
 # Assumes these packages are installed
 using MLDatasets
-using ProgressMeter
 using Plots
 
+# Specify network and cost function
+network = Network(ReLU(784,256), ReLU(256,10), Softmax())
+cost = CrossEntropy()
+
+# Load data
 function onehot(i,n)
     v = zeros(n)
     v[i] = 1.0
     return v
 end
-
 function get_training_data()
     d = MNIST(split=:train)[:]
     data = [Sample(vec(d.features[:,:,i]), onehot(d.targets[i]+1, 10)) for i in 1:size(d.features,3)]
     return data
 end 
 training_data = get_training_data();
-
 function get_test_data()
     d = MNIST(split=:test)[:]
     data = [Sample(vec(d.features[:,:,i]), onehot(d.targets[i]+1, 10)) for i in 1:size(d.features,3)]
@@ -28,15 +30,13 @@ function get_test_data()
 end 
 test_data = get_test_data();
 
-cost = CrossEntropy()
-network = Network(ReLU(784,256), ReLU(256,10), Softmax())
-
-perf_log = [mean(cost(network(s.x),s.y) for s in training_data)] # initial cost
-
-epochs = 2
+# Specify network training procedure
+epochs = 3
 batch_size = 64
 optimizer = Adam(network)
 
+# train network
+perf_log = [mean(cost(network(s.x),s.y) for s in training_data)] # initial cost
 function train()
     for epoch = 1:epochs
         println("Epoch $epoch started...")
@@ -67,8 +67,8 @@ plot(1:length(perf_log), perf_log, xscale=:log10)
 # saving parameters of the model
 using JLD
 θ = collect.(get_θ(network))
-save("theta3.jld", "θ", θ)
+save("theta.jld", "θ", θ)
 
 # loading parameters of the model
-θ = load("theta3.jld")["θ"]
+θ = load("theta.jld")["θ"]
 set_θ!(network, θ)
